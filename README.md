@@ -22,8 +22,14 @@
     * 在云服务商开通账户的 AccessKey、SecretKey
 1. 安装ttldocker `pip install ttldocker`
 2. 初始化配置文件  `ttldocker getconfig > ~/.ttldocker/config.yaml`
-3. 获取实例规格及报价 `ttldocker spots`
-4. 启动服务器实例 `ttldocker run <template-code>`
-
+3. 按需修改配置文件信息
+4. 获取实例规格及报价 `ttldocker spots <template-code>`
+5. 启动服务器实例 `ttldocker run <template-code>`
+```
+$ ttldocker run demo
+>  服务器启动中，实例列表: i-j6c35gq485oux3v7ie9b
+>  --------------------
+>  启动完成[i-j6c35gq485oux3v7ie9b] => IP:['8.218.21.7']
+```
 ## License
 * Apache License
