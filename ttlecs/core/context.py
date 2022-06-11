@@ -3,7 +3,7 @@ import yaml
 
 
 class Context:
-    config_dir = "/.ttldocker/"
+    config_dir = "/.ttlecs/"
     config_file = "config.yaml"
 
     configs = None

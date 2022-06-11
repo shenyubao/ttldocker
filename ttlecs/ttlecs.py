@@ -40,7 +40,7 @@ def parse_opts(parser):
 
 
 def execute():
-    parser = argparse.ArgumentParser(description="ttldocker - the tool for create ttl(time to alive) docker", epilog="%prog [options]")
+    parser = argparse.ArgumentParser(description="ttlecs - the tool for create ttl(time to alive) ecs(Elastic Compute Service)", epilog="%prog [options]")
     parser.add_argument("-v", "--verbose", help="print debug log", dest='verbose', action='store_true')
 
     args = parse_opts(parser)

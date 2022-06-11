@@ -5,14 +5,14 @@ import datetime
 
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
 
-from ttldocker.utils.random_util import *
+from ttlecs.utils.random_util import *
 
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526.DescribeSpotPriceHistoryRequest import DescribeSpotPriceHistoryRequest
 from aliyunsdkecs.request.v20140526.RunInstancesRequest import RunInstancesRequest
 
-from ttldocker.core.context import Context
+from ttlecs.core.context import Context
 from aliyunsdkecs.request.v20140526.DescribeAvailableResourceRequest import DescribeAvailableResourceRequest
 
 URL_RESOURCE_DESC = "https://help.aliyun.com/document_detail/25378.html#xn4-n4-mn4-e4"
@@ -75,24 +75,12 @@ class Aliyun:
         request.set_DryRun(dry_run)
         request.set_SecurityGroupId(self.get_config('security_group_id'))
 
-        try:
-            body = self.client.do_action_with_exception(request)
-            data = json.loads(body)
-            instance_ids = data['InstanceIdSets']['InstanceIdSet']
-            print('服务器启动中，实例列表: {}'.format(', '.join(instance_ids)))
-            print("--------------------")
-            self._check_instance_status(instance_ids)
-        except ClientException as e:
-            print('Fail. Something with your connection with Aliyun go incorrect.'
-                  ' Code: {code}, Message: {msg}'
-                  .format(code=e.error_code, msg=e.message))
-        except ServerException as e:
-            print('Fail. Aliyun error.'
-                  ' Code: {code}, Message: {msg}'
-                  .format(code=e.error_code, msg=e.message))
-        except Exception:
-            print('Unhandled error')
-            print(traceback.format_exc())
+        body = self._send_request(request)
+        data = json.loads(body)
+        instance_ids = data['InstanceIdSets']['InstanceIdSet']
+        print('服务器启动中，实例列表: {}'.format(', '.join(instance_ids)))
+        print("--------------------")
+        self._check_instance_status(instance_ids)
 
     def _check_instance_status(self, instance_ids):
         """
@@ -104,8 +92,8 @@ class Aliyun:
         while True:
             request = DescribeInstancesRequest()
             request.set_InstanceIds(json.dumps(instance_ids))
-            body = self.client.do_action_with_exception(request)
-            data = json.loads(body)
+            response = self._send_request(request)
+            data = json.loads(response)
             for instance in data['Instances']['Instance']:
                 if RUNNING_STATUS in instance['Status']:
                     instance_ids.remove(instance['InstanceId'])
@@ -140,45 +128,30 @@ class Aliyun:
         print("规格说明")
         print("  %s" % self.URL_RESOURCE_DESC)
 
-        try:
-            response = self.client.do_action_with_exception(request)
-            info = json.loads(str(response, encoding='utf-8'))
-            availableResources = \
-                info['AvailableZones']['AvailableZone'][0]['AvailableResources']['AvailableResource'][0][
-                    'SupportedResources']['SupportedResource']
-            print("库存规格与价格(%s):" % self.region_id)
+        response = self._send_request(request)
+        info = json.loads(str(response, encoding='utf-8'))
+        availableResources = \
+            info['AvailableZones']['AvailableZone'][0]['AvailableResources']['AvailableResource'][0][
+                'SupportedResources']['SupportedResource']
+        print("库存规格与价格(%s):" % self.region_id)
 
-            min_price_item = None
-            min_price_item_price = 0
-            for item in availableResources:
-                if item['Status'] == 'Available' and item['StatusCategory'] == 'WithStock':
-                    itemType = item['Value']
-                    originPrice, SpotPrice = self.__spots_prices(itemType)
-                    print("  %s: ￥%s -> ￥%s" % (itemType, originPrice, SpotPrice))
-                    if min_price_item is None or min_price_item_price > SpotPrice:
-                        min_price_item = itemType
-                        min_price_item_price = SpotPrice
-                    time.sleep(0.01)
-
-            print("  ")
-            print("最低价实例 %s: ￥%s" % (min_price_item, min_price_item_price))
-        except ClientException as e:
-            print('Fail. Something with your connection with Aliyun go incorrect.'
-                  ' Code: {code}, Message: {msg}'
-                  .format(code=e.error_code, msg=e.message))
-        except ServerException as e:
-            print('Fail. Aliyun error.'
-                  ' Code: {code}, Message: {msg}'
-                  .format(code=e.error_code, msg=e.message))
-        except Exception:
-            print('Unhandled error')
-            print(traceback.format_exc())
+        min_price_item = None
+        min_price_item_price = 0
+        for item in availableResources:
+            if item['Status'] == 'Available' and item['StatusCategory'] == 'WithStock':
+                itemType = item['Value']
+                originPrice, SpotPrice = self._spots_prices(itemType)
+                print("  %s: ￥%s -> ￥%s" % (itemType, originPrice, SpotPrice))
+                if min_price_item is None or min_price_item_price > SpotPrice:
+                    min_price_item = itemType
+                    min_price_item_price = SpotPrice
+                time.sleep(0.01)
 
     """
         获取实例历史价格
     """
 
-    def __spots_prices(self, instance_type):
+    def _spots_prices(self, instance_type):
         request = DescribeSpotPriceHistoryRequest()
         request.set_accept_format('json')
 
@@ -186,12 +159,16 @@ class Aliyun:
         request.set_InstanceType(instance_type)
         request.set_OSType("linux")
 
+        response = self._send_request(request)
+        info = json.loads(str(response, encoding='utf-8'))
+        item = info['SpotPrices']['SpotPriceType'][-1]
+        return float(item['OriginPrice']), float(item['SpotPrice'])
+
+
+    def _send_request(self, request):
         try:
             response = self.client.do_action_with_exception(request)
-            info = json.loads(str(response, encoding='utf-8'))
-            item = info['SpotPrices']['SpotPriceType'][-1]
-            return float(item['OriginPrice']), float(item['SpotPrice'])
-
+            return response
         except ClientException as e:
             print('Fail. Something with your connection with Aliyun go incorrect.'
                   ' Code: {code}, Message: {msg}'
@@ -203,10 +180,11 @@ class Aliyun:
         except Exception:
             print('Unhandled error')
             print(traceback.format_exc())
+        return None
 
 
 if __name__ == '__main__':
     Aliyun().run_instance()
     # Aliyun()._check_instance_status(["i-j6catsgyxin6pswtg8xi"])
     # Aliyun().spots_resource()
-    # print(Aliyun().__spots_prices('ecs.e4.small'))
+    # print(Aliyun()._spots_prices('ecs.e4.small'))
