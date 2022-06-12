@@ -1,31 +1,23 @@
-aliyun:
-    access_id: <Your Access Id>
-    access_secret: <Your Access Secret>
-    password: <Your Server Password>
-    v_switch_id: <Your V-Switch ID>
-    security_group_id: <Your Security Group ID>
-
+vendor: aliyun
+version: 1
+amount: 1
+auto_release_hour: 1
+specs:
+    access_id: <Your Access ID Here>
+    access_secret: <Your Access Secret Here>
+    password: <Your Password Here>
     region_id: cn-hongkong
-    # 竞价购买方式
-    instance_charge_type: PostPaid
-    # 以当前市价购买
-    spot_strategy: SpotAsPriceGo
-    # 申请的服务器数量
-    amount: 1
-    # 服务器最小保留时长（目前只支持 1h）
-    period_hour: 1
-    # 服务器TTL 自动释放时间(0.5 h ~ 3year)
-    auto_release_hour: 1
-
-    # 服务器规格
     instance_type: ecs.xn4.small
-    # 系统镜像
     image_id: centos_7_9_x64_20G_alibase_20220426.vhd
-    # 出网带宽(与费用相关)
     internet_max_bandwidth_out_mb: 5
-    # 系统盘容量(与费用相关)
     system_disk_size_gb: 40
-    # 流量计费方式(与费用相关)
+    period_hour: 1
+    period_unit: Hourly
+    zone_id: random
+    system_disk_category: cloud_efficiency
+    instance_charge_type: PostPaid
     internet_charge_type: PayByTraffic
-    # 服务器实例名称
+    v_switch_id: vsw-j6cvylyohfwc073u9j3sg
     instance_name: None
+    spot_strategy: SpotAsPriceGo
+    security_group_id: sg-j6c4o1iw43la0ze0uxja

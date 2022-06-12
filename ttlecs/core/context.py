@@ -15,6 +15,12 @@ class Context:
         获取配置项
     """
 
+    def get_root_config(self, key, default_value=None):
+        value = self.configs[key]
+        if value is None or value == 'None':
+            return default_value
+        return value
+
     def get_config(self, domain, key, default_value=None):
         value = self.configs[domain][key];
         if value is None or value == 'None':

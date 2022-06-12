@@ -4,14 +4,12 @@ import time
 import datetime
 
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
-
-from ttlecs.utils.random_util import *
-
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526.DescribeSpotPriceHistoryRequest import DescribeSpotPriceHistoryRequest
 from aliyunsdkecs.request.v20140526.RunInstancesRequest import RunInstancesRequest
 
+from ttlecs.utils.random_util import *
 from ttlecs.core.context import Context
 from aliyunsdkecs.request.v20140526.DescribeAvailableResourceRequest import DescribeAvailableResourceRequest
 
@@ -19,6 +17,7 @@ URL_RESOURCE_DESC = "https://help.aliyun.com/document_detail/25378.html#xn4-n4-m
 RUNNING_STATUS = 'Running'
 CHECK_INTERVAL = 3
 CHECK_TIMEOUT = 180
+
 
 class Aliyun:
     def __init__(self):
@@ -32,16 +31,12 @@ class Aliyun:
                                 self.region_id)
 
     def get_config(self, key, default_value=None):
-        return self.context.get_config('aliyun', key, default_value);
+        return self.context.get_config('aliyun', key, default_value)
 
     def dry_run_instance(self):
         return self.run_instance(True)
 
     def run_instance(self, dry_run=False):
-        zone_id = 'random'
-        period_unit = 'Hourly'
-        system_disk_category = 'cloud_efficiency'
-
         # 为默认值生成高强密码
         password = self.get_config('password')
         if password == '<random>':
@@ -53,24 +48,24 @@ class Aliyun:
         auto_release_at = None
         if auto_release_hour is not None:
             auto_release_at = datetime.datetime.utcnow() + datetime.timedelta(hours=auto_release_hour)
-            auto_release_at = auto_release_at.isoformat(timespec='seconds')+"Z"
+            auto_release_at = auto_release_at.isoformat(timespec='seconds') + "Z"
 
         request = RunInstancesRequest()
         request.set_InstanceType(self.get_config('instance_type'))
         request.set_InstanceChargeType(self.get_config('instance_charge_type'))
         request.set_ImageId(self.get_config('image_id'))
         request.set_Period(self.get_config('period_hour'))
-        request.set_PeriodUnit(period_unit)
-        request.set_ZoneId(zone_id)
+        request.set_PeriodUnit(self.get_config('period_unit', 'Hourly'))
+        request.set_ZoneId(self.get_config('zone_id', 'random'))
         request.set_InternetChargeType(self.get_config('internet_charge_type'))
         request.set_VSwitchId(self.get_config('v_switch_id'))
-        request.set_InstanceName(self.get_config('instance_name'))
+        request.set_InstanceName(self.get_config('instÏance_name'))
         request.set_Password(password)
-        request.set_Amount(self.get_config('amount'))
+        request.set_Amount(self.context.get_root_config('amount', 1))
         request.set_InternetMaxBandwidthOut(self.get_config('internet_max_bandwidth_out_mb'))
         request.set_SpotStrategy(self.get_config('spot_strategy'))
         request.set_SystemDiskSize(self.get_config('system_disk_size_gb'))
-        request.set_SystemDiskCategory(system_disk_category)
+        request.set_SystemDiskCategory(self.get_config('system_disk_category', 'cloud_efficiency'))
         request.set_AutoReleaseTime(auto_release_at)
         request.set_DryRun(dry_run)
         request.set_SecurityGroupId(self.get_config('security_group_id'))
@@ -163,7 +158,6 @@ class Aliyun:
         info = json.loads(str(response, encoding='utf-8'))
         item = info['SpotPrices']['SpotPriceType'][-1]
         return float(item['OriginPrice']), float(item['SpotPrice'])
-
 
     def _send_request(self, request):
         try:
