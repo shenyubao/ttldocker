@@ -20,18 +20,32 @@ CHECK_TIMEOUT = 180
 
 
 class Aliyun:
-    def __init__(self):
-        self.context = Context()
-        self.access_id = self.context.get_config("aliyun", "access_id")
-        self.access_secret = self.context.get_config("aliyun", "access_secret")
-        self.region_id = self.context.get_config("aliyun", "region_id")
-
-        self.client = AcsClient(self.access_id,
-                                self.access_secret,
-                                self.region_id)
+    def __init__(self, config_path):
+        self.context = Context(config_path)
+        self.access_id = self.context.get_config("specs", "access_id")
+        self.access_secret = self.context.get_config("specs", "access_secret")
+        self.region_id = self.context.get_config("specs", "region_id")
 
     def get_config(self, key, default_value=None):
-        return self.context.get_config('aliyun', key, default_value)
+        return self.context.get_config('specs', key, default_value)
+
+    def desc_instance(self, tag_id='ttlecs', page_size=10, page_number=1):
+        request = DescribeInstancesRequest()
+        request.set_PageSize(page_size)
+        request.set_PageNumber(page_number)
+
+        tags = [{"Key": "source", "Value": tag_id}]
+        request.set_Tags(tags)
+        body = self._send_request(request, region=self.region_id)
+        if body is not None:
+            data = json.loads(body)
+            if len(data['Instances']['Instance']) > 0:
+                for instance in data['Instances']['Instance']:
+                    print(
+                        "%s: 创建: %s 到期: %s" % (
+                            instance['InstanceId'], instance['StartTime'], instance['AutoReleaseTime']))
+            else:
+                print("当前没有存活实例")
 
     def dry_run_instance(self):
         return self.run_instance(True)
@@ -44,7 +58,7 @@ class Aliyun:
             print("服务器密码:%s" % password)
 
         # 生成实例到期释放时间
-        auto_release_hour = self.get_config('auto_release_hour')
+        auto_release_hour = self.context.get_root_config('auto_release_hour')
         auto_release_at = None
         if auto_release_hour is not None:
             auto_release_at = datetime.datetime.utcnow() + datetime.timedelta(hours=auto_release_hour)
@@ -59,23 +73,27 @@ class Aliyun:
         request.set_ZoneId(self.get_config('zone_id', 'random'))
         request.set_InternetChargeType(self.get_config('internet_charge_type'))
         request.set_VSwitchId(self.get_config('v_switch_id'))
-        request.set_InstanceName(self.get_config('instÏance_name'))
+        request.set_InstanceName(self.get_config('instance_name'))
         request.set_Password(password)
         request.set_Amount(self.context.get_root_config('amount', 1))
-        request.set_InternetMaxBandwidthOut(self.get_config('internet_max_bandwidth_out_mb'))
+        request.set_InternetMaxBandwidthOut(self.get_config('internet_max_bandwidth_out'))
         request.set_SpotStrategy(self.get_config('spot_strategy'))
-        request.set_SystemDiskSize(self.get_config('system_disk_size_gb'))
+        request.set_SystemDiskSize(self.get_config('system_disk_size'))
         request.set_SystemDiskCategory(self.get_config('system_disk_category', 'cloud_efficiency'))
         request.set_AutoReleaseTime(auto_release_at)
         request.set_DryRun(dry_run)
         request.set_SecurityGroupId(self.get_config('security_group_id'))
 
+        tags = [{"Key": "source", "Value": self.context.get_root_config("tag", "ttlecs")}]
+        request.set_Tags(tags)
+
         body = self._send_request(request)
-        data = json.loads(body)
-        instance_ids = data['InstanceIdSets']['InstanceIdSet']
-        print('服务器启动中，实例列表: {}'.format(', '.join(instance_ids)))
-        print("--------------------")
-        self._check_instance_status(instance_ids)
+        if body is not None:
+            data = json.loads(body)
+            instance_ids = data['InstanceIdSets']['InstanceIdSet']
+            print('服务器启动中，实例列表: {}'.format(', '.join(instance_ids)))
+            print("--------------------")
+            self._check_instance_status(instance_ids)
 
     def _check_instance_status(self, instance_ids):
         """
@@ -159,26 +177,36 @@ class Aliyun:
         item = info['SpotPrices']['SpotPriceType'][-1]
         return float(item['OriginPrice']), float(item['SpotPrice'])
 
-    def _send_request(self, request):
+    def _send_request(self, request, region=None):
         try:
-            response = self.client.do_action_with_exception(request)
+            region = self.region_id if region is None else region
+            client = AcsClient(self.access_id,
+                               self.access_secret,
+                               region)
+
+            response = client.do_action_with_exception(request)
             return response
         except ClientException as e:
-            print('Fail. Something with your connection with Aliyun go incorrect.'
+            print('失败. 未连接到阿里云服务器'
                   ' Code: {code}, Message: {msg}'
                   .format(code=e.error_code, msg=e.message))
         except ServerException as e:
-            print('Fail. Aliyun error.'
-                  ' Code: {code}, Message: {msg}'
-                  .format(code=e.error_code, msg=e.message))
+            if e.error_code == "DryRunOperation":
+                print("参数校验成功，可正确创建实例")
+            else:
+                print('失败. Aliyun 错误码.'
+                      ' Code: {code}, Message: {msg}'
+                      .format(code=e.error_code, msg=e.message))
         except Exception:
-            print('Unhandled error')
+            print('未知系统异常')
             print(traceback.format_exc())
         return None
 
 
 if __name__ == '__main__':
-    Aliyun().run_instance()
+    pass
+    # Aliyun().desc_instance(region_id='cn-hongkong', tag_id='ttlecs')
+    # Aliyun().run_instance()
     # Aliyun()._check_instance_status(["i-j6catsgyxin6pswtg8xi"])
     # Aliyun().spots_resource()
     # print(Aliyun()._spots_prices('ecs.e4.small'))
