@@ -36,6 +36,7 @@ class Aliyun:
 
         tags = [{"Key": "source", "Value": tag_id}]
         request.set_Tags(tags)
+
         body = self._send_request(request, region=self.region_id)
         if body is not None:
             data = json.loads(body)

@@ -2,12 +2,12 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
+with open(path.join(here, 'README_PYPI.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 # get the dependencies and installs
@@ -22,9 +22,8 @@ setup(
     version=__version__,
     description='create ttl ecs on cloud',
     long_description=long_description,
-    url='http://git.souche.com/datacenter/dayu',
-    download_url='http://git.souche.com/datacenter/dayu/tarball/' + __version__,
-    license='BSD',
+    url='https://github.com/shenyubao/ttlecs',
+    license='MIT',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
@@ -40,7 +39,7 @@ setup(
     author_email='ssybb1988@gmail.com',
     entry_points={
         'console_scripts': {
-            'ttlecs = ttlecs.ttlecs:execute'
+            'ttlecs = ttlecs.cmd:execute'
         },
     },
 )
