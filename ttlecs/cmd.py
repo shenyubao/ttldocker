@@ -37,8 +37,8 @@ def parse_opts(parser):
 
     parse_list = subparsers.add_parser('list', help='list the running ecs instance')
     parse_list.add_argument('--config', dest="config_file", help="the config file path", required=True)
-    parse_list.add_argument('--page_size', default=1, dest="page_size", help="the size of page")
-    parse_list.add_argument('--page_number', default=10, dest="page_number", help="the number of page")
+    parse_list.add_argument('--page_size', default=10, dest="page_size", help="the size of page")
+    parse_list.add_argument('--page_number', default=1, dest="page_number", help="the number of page")
 
     parse_template = subparsers.add_parser('template', help='list the docker template list')
 

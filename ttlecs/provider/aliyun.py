@@ -1,7 +1,7 @@
 import traceback
 import json
 import time
-import datetime
+from datetime import datetime, timedelta
 
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
@@ -17,6 +17,13 @@ URL_RESOURCE_DESC = "https://help.aliyun.com/document_detail/25378.html#xn4-n4-m
 RUNNING_STATUS = 'Running'
 CHECK_INTERVAL = 3
 CHECK_TIMEOUT = 180
+
+
+def time_format(target_time):
+    _date = datetime.strptime(target_time, "%Y-%m-%dT%H:%MZ")
+    local_time = _date + timedelta(hours=8)
+    end_time = local_time.strftime("%Y-%m-%d %H:%M")
+    return end_time
 
 
 class Aliyun:
@@ -42,9 +49,16 @@ class Aliyun:
             data = json.loads(body)
             if len(data['Instances']['Instance']) > 0:
                 for instance in data['Instances']['Instance']:
+                    public_ip = None
+                    if instance['PublicIpAddress'] is not None and \
+                            instance['PublicIpAddress']['IpAddress'] is not None and \
+                            len(instance['PublicIpAddress']['IpAddress']) > 0:
+                        public_ip = instance['PublicIpAddress']['IpAddress'][0]
+
                     print(
-                        "%s: 创建: %s 到期: %s" % (
-                            instance['InstanceId'], instance['StartTime'], instance['AutoReleaseTime']))
+                        "[ID]:%s [IP]:%s [创建]:%s [到期]:%s" % (
+                            instance['InstanceId'], public_ip, time_format(instance['StartTime']),
+                            time_format(instance['AutoReleaseTime'])))
             else:
                 print("当前没有存活实例")
 
@@ -52,12 +66,6 @@ class Aliyun:
         return self.run_instance(True)
 
     def run_instance(self, dry_run=False):
-        # 为默认值生成高强密码
-        password = self.get_config('password')
-        if password == '<random>':
-            password = strong_password()
-            print("服务器密码:%s" % password)
-
         # 生成实例到期释放时间
         auto_release_hour = self.context.get_root_config('auto_release_hour')
         auto_release_at = None
@@ -66,6 +74,15 @@ class Aliyun:
             auto_release_at = auto_release_at.isoformat(timespec='seconds') + "Z"
 
         request = RunInstancesRequest()
+        password = self.get_config('password')
+        if password == '<random>':
+            password = strong_password()
+            print("服务器密码:%s" % password)
+        request.set_Password(password)
+        request.set_DryRun(dry_run)
+        request.set_AutoReleaseTime(auto_release_at)
+        request.set_Amount(self.context.get_root_config('amount', 1))
+
         request.set_InstanceType(self.get_config('instance_type'))
         request.set_InstanceChargeType(self.get_config('instance_charge_type'))
         request.set_ImageId(self.get_config('image_id'))
@@ -75,14 +92,10 @@ class Aliyun:
         request.set_InternetChargeType(self.get_config('internet_charge_type'))
         request.set_VSwitchId(self.get_config('v_switch_id'))
         request.set_InstanceName(self.get_config('instance_name'))
-        request.set_Password(password)
-        request.set_Amount(self.context.get_root_config('amount', 1))
         request.set_InternetMaxBandwidthOut(self.get_config('internet_max_bandwidth_out'))
         request.set_SpotStrategy(self.get_config('spot_strategy'))
         request.set_SystemDiskSize(self.get_config('system_disk_size'))
         request.set_SystemDiskCategory(self.get_config('system_disk_category', 'cloud_efficiency'))
-        request.set_AutoReleaseTime(auto_release_at)
-        request.set_DryRun(dry_run)
         request.set_SecurityGroupId(self.get_config('security_group_id'))
 
         tags = [{"Key": "source", "Value": self.context.get_root_config("tag", "ttlecs")}]
@@ -114,7 +127,6 @@ class Aliyun:
                     print("启动完成[%s] => IP:%s" % (
                         instance['InstanceId'],
                         instance['PublicIpAddress']['IpAddress']
-
                     ))
 
             if not instance_ids:
