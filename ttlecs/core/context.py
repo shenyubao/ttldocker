@@ -20,10 +20,13 @@ class Context:
         return value
 
     def get_config(self, domain, key, default_value=None):
-        value = self.configs[domain][key]
-        if value is None or value == 'None':
+        try:
+            value = self.configs[domain][key]
+            if value is None or value == 'None':
+                return default_value
+            return value
+        except KeyError:
             return default_value
-        return value
 
     def load_config(self, config_path):
         if not os.path.exists(config_path):

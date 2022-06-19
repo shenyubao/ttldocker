@@ -1,12 +1,15 @@
 import traceback
 import json
 import time
+import base64
 from datetime import datetime, timedelta
 
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.client import AcsClient
+from aliyunsdkecs.request.v20140526.DescribeInvocationResultsRequest import DescribeInvocationResultsRequest
 from aliyunsdkecs.request.v20140526.DescribeSpotPriceHistoryRequest import DescribeSpotPriceHistoryRequest
+from aliyunsdkecs.request.v20140526.RunCommandRequest import RunCommandRequest
 from aliyunsdkecs.request.v20140526.RunInstancesRequest import RunInstancesRequest
 
 from ttlecs.utils.random_util import *
@@ -35,6 +38,43 @@ class Aliyun:
 
     def get_config(self, key, default_value=None):
         return self.context.get_config('specs', key, default_value)
+
+    def get_command_result(self, instances, invoke_id):
+        check_instances = instances.copy()
+
+        while len(check_instances) > 0:
+            time.sleep(CHECK_INTERVAL)
+
+            request = DescribeInvocationResultsRequest()
+            request.set_accept_format('json')
+            request.set_InvokeId(invoke_id)
+            request.set_PageSize(50)  # TODO: 遍历
+            body = self._send_request(request, region=self.region_id)
+            if body is not None:
+                data = json.loads(body)
+                for InvocationResult in data['Invocation']['InvocationResults']['InvocationResult']:
+                    if InvocationResult['InvokeRecordStatus'] == "Finished" and check_instances.__contains__(
+                            InvocationResult['InstanceId']):
+                        print("[%s] 命令执行完成, 执行结果:%s" % (
+                        InvocationResult['InstanceId'], InvocationResult['InvocationStatus']))
+                        if InvocationResult['InvocationStatus'] == 'Failed':
+                            output = base64.b64decode(InvocationResult['Output'])
+                            print("错误内容: %s" % output)
+                        check_instances.remove(InvocationResult['InstanceId'])
+
+    def run_command(self, instance_ids, command):
+        request = RunCommandRequest()
+        request.set_accept_format('json')
+
+        request.set_Name("TTLEcsInitScript")
+        request.set_Type("RunShellScript")
+        request.set_CommandContent(command)
+        request.set_InstanceIds(instance_ids)
+
+        body = self._send_request(request, region=self.region_id)
+        if body is not None:
+            data = json.loads(body)
+        return data['InvokeId']
 
     def desc_instance(self, tag_id='ttlecs', page_size=10, page_number=1):
         request = DescribeInstancesRequest()
@@ -70,7 +110,7 @@ class Aliyun:
         auto_release_hour = self.context.get_root_config('auto_release_hour')
         auto_release_at = None
         if auto_release_hour is not None:
-            auto_release_at = datetime.datetime.utcnow() + datetime.timedelta(hours=auto_release_hour)
+            auto_release_at = datetime.utcnow() + timedelta(hours=auto_release_hour)
             auto_release_at = auto_release_at.isoformat(timespec='seconds') + "Z"
 
         request = RunInstancesRequest()
@@ -102,12 +142,27 @@ class Aliyun:
         request.set_Tags(tags)
 
         body = self._send_request(request)
+        instance_ids = []
         if body is not None:
             data = json.loads(body)
             instance_ids = data['InstanceIdSets']['InstanceIdSet']
-            print('服务器启动中，实例列表: {}'.format(', '.join(instance_ids)))
+            print('实例创建中，列表: {}'.format(', '.join(instance_ids)))
             print("--------------------")
+            print('正在启动实例')
             self._check_instance_status(instance_ids)
+
+        #     执行启动脚本
+        command_enable = self.context.get_config("commands", "enable", 'True')
+        command_content = self.context.get_config("commands", "content", "")
+        invoke_id = None
+        if command_enable == "true" or command_enable == "True" or command_enable is True:
+            print("--------------------")
+            print("开始执行命令:%s" % command_content.replace("\n", ""))
+            invoke_id = self.run_command(instance_ids, command_content)
+
+        if invoke_id is not None:
+            print("正在获取命令结果")
+            self.get_command_result(instance_ids,invoke_id)
 
     def _check_instance_status(self, instance_ids):
         """
@@ -118,23 +173,25 @@ class Aliyun:
         start = time.time()
         while True:
             request = DescribeInstancesRequest()
-            request.set_InstanceIds(json.dumps(instance_ids))
+            check_instance = instance_ids.copy()
+
+            request.set_InstanceIds(json.dumps(check_instance))
             response = self._send_request(request)
             data = json.loads(response)
             for instance in data['Instances']['Instance']:
                 if RUNNING_STATUS in instance['Status']:
-                    instance_ids.remove(instance['InstanceId'])
-                    print("启动完成[%s] => IP:%s" % (
+                    check_instance.remove(instance['InstanceId'])
+                    print("[%s] 已启动, IP:%s" % (
                         instance['InstanceId'],
                         instance['PublicIpAddress']['IpAddress']
                     ))
 
-            if not instance_ids:
+            if not check_instance:
                 break
 
             if time.time() - start > CHECK_TIMEOUT:
                 print('Instances boot failed within {timeout}s: {ids}'
-                      .format(timeout=CHECK_TIMEOUT, ids=', '.join(instance_ids)))
+                      .format(timeout=CHECK_TIMEOUT, ids=', '.join(check_instance)))
                 break
 
             time.sleep(CHECK_INTERVAL)
@@ -206,6 +263,7 @@ class Aliyun:
         except ServerException as e:
             if e.error_code == "DryRunOperation":
                 print("参数校验成功，可正确创建实例")
+                exit(0)
             else:
                 print('失败. Aliyun 错误码.'
                       ' Code: {code}, Message: {msg}'
@@ -218,6 +276,15 @@ class Aliyun:
 
 if __name__ == '__main__':
     pass
+    config = '/Users/shenyubao/.ttlecs/config.yaml'
+    command = 'yum install -y docker;service docker start;docker pull shadowsocks/shadowsocks-libev;docker run -e PASSWORD=pwd8388 -p8388:8388 -p8388:8388/udp -d shadowsocks/shadowsocks-libev'
+    # ins_id = ['i-j6cayzc5mvak18x3m6vk']
+    # Aliyun(config).run_command(ins_id, command)
+    # invoke = "t-hk02nk4md4zasxs"
+    # Aliyun(config).get_command_result(ins_id, invoke)
+    # print(Aliyun(config).context.get_config("commands","content",""))
+
+    Aliyun(config).run_instance(True)
     # Aliyun().desc_instance(region_id='cn-hongkong', tag_id='ttlecs')
     # Aliyun().run_instance()
     # Aliyun()._check_instance_status(["i-j6catsgyxin6pswtg8xi"])

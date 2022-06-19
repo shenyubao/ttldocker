@@ -3,6 +3,13 @@ version: 1
 amount: 1
 auto_release_hour: 1
 tag: ttlecs
+commands:
+    enable: True
+    content: >
+        yum install -y docker;
+        service docker start;
+        docker pull shadowsocks/shadowsocks-libev;
+        docker run -e PASSWORD=pwd8388 -p8388:8388 -p8388:8388/udp -d shadowsocks/shadowsocks-libev
 specs:
     access_id: <Your Access ID Here>
     access_secret: <Your Access Secret Here>
