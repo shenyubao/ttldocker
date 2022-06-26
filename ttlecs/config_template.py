@@ -25,7 +25,7 @@ specs:
     system_disk_category: cloud_efficiency
     instance_charge_type: PostPaid
     internet_charge_type: PayByTraffic
-    v_switch_id: vsw-j6cvylyohfwc073u9j3sg
+    vswitch_id: vsw-j6cvylyohfwc073u9j3sg
     instance_name: None
     spot_strategy: SpotAsPriceGo
     security_group_id: sg-j6c4o1iw43la0ze0uxja

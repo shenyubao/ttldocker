@@ -130,7 +130,7 @@ class Aliyun:
         request.set_PeriodUnit(self.get_config('period_unit', 'Hourly'))
         request.set_ZoneId(self.get_config('zone_id', 'random'))
         request.set_InternetChargeType(self.get_config('internet_charge_type'))
-        request.set_VSwitchId(self.get_config('v_switch_id'))
+        request.set_VSwitchId(self.get_config('vswitch_id'))
         request.set_InstanceName(self.get_config('instance_name'))
         request.set_InternetMaxBandwidthOut(self.get_config('internet_max_bandwidth_out'))
         request.set_SpotStrategy(self.get_config('spot_strategy'))

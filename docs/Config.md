@@ -23,7 +23,7 @@
   * system_disk_category
   * instance_charge_type
   * internet_charge_type
-  * v_switch_id
+  * vswitch_id
   * instance_name
   * spot_strategy
   * security_group_id
@@ -49,7 +49,7 @@ specs:
     access_id: <Your Access ID>
     access_secret: <Your Access Secret>
     password: <Your ECS Password>
-    v_switch_id: <Your ECS Switch ID>
+    vswitch_id: <Your ECS Switch ID>
     security_group_id: sg-j6c4o1iw43la0ze0uxja
     region_id: cn-hongkong
     instance_type: ecs.xn4.small
